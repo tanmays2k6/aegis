@@ -16,7 +16,7 @@ $$;
 
 DROP POLICY IF EXISTS "select_profiles" ON public.profiles;
 CREATE POLICY "select_profiles" ON public.profiles FOR SELECT TO authenticated
-  USING (auth.uid() = id OR public.is_privileged_role(ARRAY['admin', 'auditor']));
+  USING (auth.uid() = id);
 
 DROP POLICY IF EXISTS "insert_cases" ON public.cases;
 CREATE POLICY "insert_cases" ON public.cases FOR INSERT TO authenticated
