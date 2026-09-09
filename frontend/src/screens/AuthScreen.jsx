@@ -34,10 +34,8 @@ export default function AuthScreen({ onAuthed }) {
         setMessage('Account created. You can sign in now.');
         setMode('login');
       }
-    } catch {
-      setError(mode === 'login'
-        ? 'We couldn\u2019t sign you in. Check your email and password.'
-        : 'We couldn\u2019t create your account. Please check your details and try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The server did not return an error message.');
     }
     setBusy(false);
   }
