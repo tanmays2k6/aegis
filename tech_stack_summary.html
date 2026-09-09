@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AEGIS Chain of Custody - Technical Architecture & Implementation Summary</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+  }
+  
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #172b36;
+    background: #ffffff;
+    line-height: 1.55;
+    font-size: 10pt;
+  }
+  
+  .doc-header {
+    border-bottom: 2px solid #d98535;
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+  }
+  
+  .badge-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  
+  .system-badge {
+    display: inline-block;
+    background: #102f3d;
+    color: #edf7f8;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 4px;
+  }
+  
+  .doc-date {
+    font-size: 8.5pt;
+    color: #6c7f88;
+    font-weight: 500;
+  }
+  
+  h1 {
+    font-size: 19pt;
+    font-weight: 800;
+    color: #102f3d;
+    letter-spacing: -0.02em;
+    margin-bottom: 3px;
+  }
+  
+  .subtitle {
+    font-size: 10.5pt;
+    color: #c97d28;
+    font-weight: 600;
+  }
+  
+  h2 {
+    font-size: 12.5pt;
+    font-weight: 700;
+    color: #102f3d;
+    border-left: 4px solid #d98535;
+    padding-left: 9px;
+    margin-top: 18px;
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+  
+  p {
+    margin-bottom: 8px;
+    color: #293845;
+  }
+  
+  .flow-box {
+    background: #f8fafb;
+    border: 1px solid #dbe5e9;
+    border-radius: 6px;
+    padding: 11px 13px;
+    margin: 12px 0 16px 0;
+  }
+  
+  .flow-title {
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #1e78a6;
+    margin-bottom: 7px;
+  }
+  
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 6px;
+    font-size: 9pt;
+  }
+  
+  .flow-step:last-child {
+    margin-bottom: 0;
+  }
+  
+  .flow-num {
+    background: #102f3d;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 7.5pt;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  
+  .flow-text strong {
+    color: #102f3d;
+  }
+  
+  .component-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 11px;
+    page-break-inside: avoid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  
+  .component-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid #edf2f7;
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+  }
+  
+  .component-name {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #102f3d;
+  }
+  
+  .component-tag {
+    font-size: 7.5pt;
+    font-weight: 600;
+    background: #eef6f9;
+    color: #167a8c;
+    padding: 2px 7px;
+    border-radius: 4px;
+    border: 1px solid #cce5ed;
+  }
+  
+  .detail-group {
+    margin-bottom: 5px;
+  }
+  
+  .detail-group:last-child {
+    margin-bottom: 0;
+  }
+  
+  .detail-label {
+    font-weight: 700;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #718096;
+    display: block;
+    margin-bottom: 1px;
+  }
+  
+  .detail-content {
+    font-size: 9pt;
+    color: #2d3748;
+  }
+  
+  code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 8.5pt;
+    background: #f1f5f9;
+    color: #0f4c6e;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+  }
+  
+  pre {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+    font-size: 8pt;
+    background: #102f3d;
+    color: #e2f1f5;
+    padding: 8px 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin: 5px 0;
+    line-height: 1.35;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 14px 0;
+    font-size: 8.5pt;
+    page-break-inside: avoid;
+  }
+  
+  th, td {
+    padding: 6px 8px;
+    text-align: left;
+    border: 1px solid #e2e8f0;
+  }
+  
+  th {
+    background: #102f3d;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 8pt;
+    letter-spacing: 0.03em;
+  }
+  
+  tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+  
+  .pillars-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 9px;
+    margin: 10px 0;
+    page-break-inside: avoid;
+  }
+  
+  .pillar-card {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 9px;
+    background: #f8fafc;
+  }
+  
+  .pillar-title {
+    font-size: 9pt;
+    font-weight: 700;
+    color: #102f3d;
+    margin-bottom: 3px;
+    border-bottom: 2px solid #d98535;
+    padding-bottom: 2px;
+  }
+  
+  .pillar-desc {
+    font-size: 8pt;
+    color: #475569;
+    line-height: 1.35;
+  }
+  
+  .page-break {
+    page-break-before: always;
+  }
+  
+  .footer {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 7px;
+    margin-top: 20px;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Page 1: Architecture Overview & Frontend -->
+  <div class="doc-header">
+    <div class="badge-row">
+      <span class="system-badge">AEGIS / Chain of Custody</span>
+      <span class="doc-date">Smart India Hackathon (SIH 2026) &bull; Technical Architecture Guide</span>
+    </div>
+    <h1>System Tech Stack & Architecture</h1>
+    <div class="subtitle">Complete Implementation Breakdown, Module Responsibilities, and Forensic Rationale</div>
+  </div>
+
+  <div class="flow-box">
+    <div class="flow-title">End-to-End Cryptographic Ingestion Flow</div>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-text"><strong>Client Capture & Fingerprinting:</strong> Officer selects evidence file. Browser <code>Web Crypto API</code> computes SHA-256 in memory before network transmission.</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-text"><strong>Gateway Interception & Verification:</strong> <code>Express 5</code> API intercepts request, verifies user JWT and role via <code>auth.js</code>, and recomputes SHA-256 via Node <code>crypto</code> to guarantee zero transit tampering.</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-text"><strong>Blockchain Ledger Anchoring:</strong> <code>PostgreSQL/Supabase</code> acquires an advisory transaction lock, anchors the file into <code>evidence</code> and <code>evidence_versions</code>, links previous block hash, and appends to <code>hash_chain</code>.</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <div class="flow-text"><strong>Immutable Audit Chaining:</strong> Event is recorded to <code>audit_log</code> using <code>append_audit_entry</code>, mathematically binding officer identity, timestamp, and action to the historical audit chain.</div>
+    </div>
+  </div>
+
+  <div class="pillars-grid">
+    <div class="pillar-card">
+      <div class="pillar-title">1. Client Trust</div>
+      <div class="pillar-desc"><strong>React 18 + Web Crypto</strong> ensures that an immutable SHA-256 fingerprint is generated at the moment of intake on the field officer's terminal.</div>
+    </div>
+    <div class="pillar-card">
+      <div class="pillar-title">2. Gateway Security</div>
+      <div class="pillar-desc"><strong>Express 5 + RBAC Middleware</strong> acts as a security firewall, enforcing role permissions, file limits (10MB), and dual server-side hash verification.</div>
+    </div>
+    <div class="pillar-card">
+      <div class="pillar-title">3. Ledger Immutability</div>
+      <div class="pillar-desc"><strong>PostgreSQL + pgcrypto</strong> executes sequential block linking with advisory transaction locks, achieving zero-gas blockchain integrity in SQL.</div>
+    </div>
+  </div>
+
+  <h2>1. Frontend Layer Architecture</h2>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">React 18 (Functional Components & Hooks)</span>
+      <span class="component-tag">Client Application</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Declarative UI library for building reactive Single Page Applications (SPAs) with state-driven rendering and component modularity.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">
+        Implemented across <code>frontend/src/App.jsx</code> and screen views (<code>Dashboard</code>, <code>CasesView</code>, <code>EvidenceView</code>, <code>AuditView</code>, <code>ComplianceView</code>). Maintains active JWT session in state, intercepts token expiration, and dynamically drives Role-Based Navigation in <code>Workspace.jsx</code> (e.g., hiding Audit and Compliance tabs for non-auditors).
+      </div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale</span>
+      <div class="detail-content">Allows instantaneous transitions between FIR registries and evidence lists without page reloads, providing the responsiveness required by high-pressure police operations.</div>
+    </div>
+  </div>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">Vite 5 (Next-Gen Bundler & Toolchain)</span>
+      <span class="component-tag">Build System</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Fast frontend tooling powered by native ES modules (ESM) with Hot Module Replacement and Rollup-based production bundling.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">Configured in <code>vite.config.js</code> with path aliases (<code>@</code> &rarr; <code>frontend/src</code>). Bundles optimized, code-split production outputs to <code>dist/</code> in under 15 seconds.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale</span>
+      <div class="detail-content">Ensures zero-delay developer experience and compact production bundles suitable for deployment in government intranet and field devices.</div>
+    </div>
+  </div>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">Web Crypto API (window.crypto.subtle)</span>
+      <span class="component-tag">Client Cryptography</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Native, hardware-accelerated browser cryptography standard for secure hashing, signing, and encryption without external JS dependencies.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">
+        In <code>frontend/src/lib/utils.js</code> (<code>sha256()</code>), the browser reads raw file bytes into an <code>ArrayBuffer</code> and executes <code>crypto.subtle.digest('SHA-256', buffer)</code>. Computed immediately when the file is chosen in <code>UploadModal</code>.
+      </div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale (Forensic Criticality)</span>
+      <div class="detail-content"><strong>Zero-Trust Client Ingestion:</strong> Proves that evidence was fingerprinted at the exact second it left the officer's hands, establishing origin integrity before transit.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>AEGIS Chain of Custody &bull; Technical Architecture Documentation</span>
+    <span>Page 1 of 3</span>
+  </div>
+
+  <!-- Page 2: Backend & Middleware -->
+  <div class="page-break"></div>
+
+  <div class="doc-header">
+    <div class="badge-row">
+      <span class="system-badge">AEGIS / Chain of Custody</span>
+      <span class="doc-date">Backend & API Layer</span>
+    </div>
+    <h1>Backend & API Architecture</h1>
+    <div class="subtitle">Secure Gateway, Dual-Hashing Validation, and Role-Based Access Control</div>
+  </div>
+
+  <h2>2. Backend & Middleware Layer</h2>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">Node.js (ES Modules Environment)</span>
+      <span class="component-tag">Server Runtime</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Asynchronous event-driven server runtime. Modern projects configure <code>"type": "module"</code> to use native <code>import</code>/<code>export</code> syntax.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">Runs the entire backend architecture asynchronously with non-blocking I/O, streaming base64 buffers, and interacting with PostgreSQL via RESTful connections.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale</span>
+      <div class="detail-content">Allows a unified JavaScript/ESM ecosystem across frontend and backend, avoiding mental overhead and enabling shared models and cryptographic validation logic.</div>
+    </div>
+  </div>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">Express.js 5</span>
+      <span class="component-tag">REST API Framework</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Minimalist web framework providing routing, body parsing, and middleware chaining.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">
+        Entrypoint at <code>backend/server.js</code>. Routes requests into structured MVC layers:
+        <br>&bull; <code>/api/auth</code> &rarr; User registration, login, and profile fetching.
+        <br>&bull; <code>/api/cases</code> &rarr; Case registry (FIR creation, status updates).
+        <br>&bull; <code>/api/evidence</code> &rarr; Evidence anchoring, status changes (draft/submitted/approved/locked).
+        <br>&bull; <code>/api/audit</code> &rarr; Immutable audit trail queries (restricted to auditors/admins).
+        <br>&bull; <code>/api/compliance</code> &rarr; System assurance metrics and health check.
+        <br>Configured with <code>express.json({ limit: '30mb' })</code> to handle base64-encoded evidence files.
+      </div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale</span>
+      <div class="detail-content"><strong>Application Firewall:</strong> Never exposes the database directly to clients. The Express layer intercepts requests to enforce size quotas, perform cryptographic checks, and audit actions before database commits.</div>
+    </div>
+  </div>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">Node.js Native crypto Module</span>
+      <span class="component-tag">Dual-Hashing Engine</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Native C++ OpenSSL binding in Node.js for high-speed cryptographic operations.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">
+        In <code>backend/controllers/evidenceController.js</code>:
+<pre>const bytes = Buffer.from(fileContent, 'base64');
+const actualHash = crypto.createHash('sha256').update(bytes).digest('hex');
+if (actualHash !== currentHash) {
+  return res.status(400).json({ error: 'Evidence hash does not match uploaded file.' });
+}</pre>
+      </div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale</span>
+      <div class="detail-content"><strong>Dual-Verification Integrity:</strong> Guarantees that if a single bit of the file was corrupted or tampered with over the network, the upload is rejected immediately.</div>
+    </div>
+  </div>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">Custom Auth & Role-Based Access Control (RBAC)</span>
+      <span class="component-tag">Security Middleware</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Middleware protecting private endpoints by validating JWT headers and checking user authorization levels.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">
+        In <code>backend/middleware/auth.js</code>:
+        <br>&bull; <code>requireAuth</code>: Extracts <code>Bearer &lt;token&gt;</code>, queries Supabase Auth, and resolves profile data (full name, role, jurisdiction).
+        <br>&bull; <code>requireRoles(...roles)</code>: Reusable guard (e.g. <code>requireRoles('admin', 'auditor')</code>) returning HTTP 403 Forbidden on unauthorized access attempts.
+      </div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale</span>
+      <div class="detail-content">Enforces judicial authority hierarchy: Investigating Officers upload evidence; Court Clerks review and approve for court admissibility; Auditors verify chain integrity without editing records.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>AEGIS Chain of Custody &bull; Technical Architecture Documentation</span>
+    <span>Page 2 of 3</span>
+  </div>
+
+  <!-- Page 3: Database & Blockchain Ledger -->
+  <div class="page-break"></div>
+
+  <div class="doc-header">
+    <div class="badge-row">
+      <span class="system-badge">AEGIS / Chain of Custody</span>
+      <span class="doc-date">Database & Blockchain Core</span>
+    </div>
+    <h1>Database & Cryptographic Ledger</h1>
+    <div class="subtitle">PostgreSQL Relational Storage, PL/pgSQL Stored Procedures, and Hash Chaining</div>
+  </div>
+
+  <h2>3. Database & Blockchain Ledger Layer</h2>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">Supabase (Enterprise PostgreSQL 15+)</span>
+      <span class="component-tag">Relational Database & Auth</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Open-source Firebase alternative providing managed PostgreSQL, automated REST endpoints, and JWT authentication.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">
+        Stores structured relations across 6 core tables:
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%;">Table</th>
+              <th style="width: 40%;">Primary Role</th>
+              <th style="width: 35%;">Integrity Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>profiles</code></td>
+              <td>User identities (officers, clerks, auditors)</td>
+              <td>Foreign-key bound to Supabase <code>auth.users</code></td>
+            </tr>
+            <tr>
+              <td><code>cases</code></td>
+              <td>FIR case registry & jurisdictions</td>
+              <td>Parent anchor for all subsequent evidence items</td>
+            </tr>
+            <tr>
+              <td><code>evidence</code></td>
+              <td>Primary evidence item records</td>
+              <td>Stores active SHA-256 fingerprint & legal status</td>
+            </tr>
+            <tr>
+              <td><code>evidence_versions</code></td>
+              <td>Historical versions of modified files</td>
+              <td>Maintains version-level hash chaining</td>
+            </tr>
+            <tr>
+              <td><code>audit_log</code></td>
+              <td>Chronological log of every system action</td>
+              <td>Chained cryptographically via <code>previous_chain_hash</code></td>
+            </tr>
+            <tr>
+              <td><code>hash_chain</code></td>
+              <td>Master blockchain ledger</td>
+              <td>Global sequential ledger unifying evidence and audit logs</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale</span>
+      <div class="detail-content">Provides strict ACID transactions, foreign key integrity, and relational joins required for criminal justice proceedings.</div>
+    </div>
+  </div>
+
+  <div class="component-card">
+    <div class="component-header">
+      <span class="component-name">PL/pgSQL Stored Procedures & pgcrypto Extension</span>
+      <span class="component-tag">Blockchain Core</span>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Industry Standard Usage</span>
+      <div class="detail-content">Compiled procedural code running inside the PostgreSQL database engine. <code>pgcrypto</code> enables cryptographic hashing (SHA-256) in SQL.</div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Implementation in AEGIS</span>
+      <div class="detail-content">
+        Defined in <code>backend/supabase/migrations/20260909000000_secure_api_and_chain.sql</code>:
+        <br>&bull; <strong>Advisory Concurrency Lock:</strong> <code>PERFORM pg_advisory_xact_lock(90226001);</code> prevents race conditions and ensures strictly sequential ledger numbers.
+        <br>&bull; <strong>Master Blockchain Formula:</strong>
+<pre>v_ledger_hash := encode(extensions.digest(
+  v_ledger_previous || ':evidence_version:' || v_version.id::text || ':' || v_version_hash,
+  'sha256'
+), 'hex');</pre>
+        &bull; <strong>Chained Audit Logging (<code>append_audit_entry</code>):</strong> Every action calculates a new block hash linking the previous action's hash, officer UUID, action name, and UTC timestamp.
+      </div>
+    </div>
+    <div class="detail-group">
+      <span class="detail-label">Design Rationale (Why Not Ethereum/Hyperledger?)</span>
+      <div class="detail-content">
+        <strong>Zero-Gas, Instant Finality:</strong> Running the blockchain hash-chain directly inside PostgreSQL stored procedures delivers mathematical immutability and tamper-detection without expensive cryptocurrency gas fees, complex validator networks, or slow block times.
+      </div>
+    </div>
+  </div>
+
+  <h2>4. Development & Orchestration Tooling</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 18%;">Tool</th>
+        <th style="width: 27%;">Standard Purpose</th>
+        <th style="width: 30%;">Implementation in AEGIS</th>
+        <th style="width: 25%;">Why Used Here</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>concurrently</code></td>
+        <td>Runs multiple scripts concurrently in one terminal</td>
+        <td><code>npm run dev</code> executes both frontend Vite and backend Nodemon</td>
+        <td>Single-command developer ramp-up for the team</td>
+      </tr>
+      <tr>
+        <td><code>nodemon</code></td>
+        <td>File watcher that auto-restarts Node.js processes</td>
+        <td>Bound to <code>backend/server.js</code> under <code>npm run dev:backend</code></td>
+        <td>Instant backend hot-reloading upon route modifications</td>
+      </tr>
+      <tr>
+        <td><code>dotenv</code></td>
+        <td>Injects environment variables from <code>.env</code></td>
+        <td>Imported in <code>backend/server.js</code> &amp; <code>backend/config/supabase.js</code></td>
+        <td>Prevents leakage of database credentials in source code</td>
+      </tr>
+      <tr>
+        <td><code>ESLint 9</code></td>
+        <td>Static linter for JS/JSX code quality</td>
+        <td>Configured via <code>eslint.config.js</code></td>
+        <td>Maintains uniform code standards across the codebase</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>AEGIS Chain of Custody &bull; Technical Architecture Documentation</span>
+    <span>Page 3 of 3</span>
+  </div>
+
+</body>
+</html>
