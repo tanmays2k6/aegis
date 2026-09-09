@@ -29,7 +29,7 @@ export default function EvidenceView({ profile, search }) {
         eyebrow="EVIDENCE VAULT / CHAINED RECORDS"
         title="Evidence vault"
         description="Every file has a fingerprint. Every change has a witness."
-        action={<button className="primary-button" onClick={() => setShowUpload(true)}><UploadCloud size={17} /> Add evidence</button>}
+        action={profile.role !== 'auditor' ? <button className="primary-button" onClick={() => setShowUpload(true)}><UploadCloud size={17} /> Add evidence</button> : null}
       />
       <div className="vault-banner">
         <div className="vault-banner-icon"><LockKeyhole size={20} /></div>

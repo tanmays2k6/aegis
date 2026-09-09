@@ -29,7 +29,7 @@ export default function CasesView({ profile, search }) {
         eyebrow="CASE REGISTRY / ALL MATTERS"
         title="Case registry"
         description="A complete, accountable view of investigations under your command."
-        action={<button className="primary-button" onClick={() => setShowCreate(true)}><Plus size={17} /> Register case</button>}
+        action={profile.role !== 'auditor' ? <button className="primary-button" onClick={() => setShowCreate(true)}><Plus size={17} /> Register case</button> : null}
       />
       <div className="toolbar">
         <div className="filter-tabs">
