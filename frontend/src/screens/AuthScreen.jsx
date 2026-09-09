@@ -9,6 +9,7 @@ export default function AuthScreen({ onAuthed }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState('investigating_officer');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -27,7 +28,7 @@ export default function AuthScreen({ onAuthed }) {
         }
       } else {
         await api.auth.signUp({
-          email, password, fullName,
+          email, password, fullName, role,
           department: 'Bengaluru City Police', jurisdiction: 'Bengaluru',
         });
         setMessage('Account created. You can sign in now.');
@@ -78,7 +79,16 @@ export default function AuthScreen({ onAuthed }) {
                 <label>Full name
                   <input required value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Aarav Mehta" />
                 </label>
-                <p className="auth-role-note">New accounts start as Investigating Officers. An administrator manages role changes.</p>
+                <label>Role
+                  <select value={role} onChange={(e) => setRole(e.target.value)}>
+                    <option value="investigating_officer">Investigating Officer</option>
+                    <option value="forensic_lab">Forensic Lab Officer</option>
+                    <option value="court_clerk">Court Clerk</option>
+                    <option value="auditor">Auditor</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </label>
+                <p className="auth-role-note">Select the workspace role for this demonstration account.</p>
               </>
             )}
             <label>Official email

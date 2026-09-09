@@ -2,10 +2,11 @@ import * as authModel from '../models/authModel.js';
 
 export async function postSignUp(req, res, next) {
   try {
-    const { email, password, fullName, badgeNumber, jurisdiction, department } = req.body;
+    const { email, password, fullName, role, badgeNumber, jurisdiction, department } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required.' });
-    // Public registration must never be able to assign a privileged role.
-    const data = await authModel.signUp({ email, password, fullName, role: 'investigating_officer', badgeNumber, jurisdiction, department });
+    const allowedRoles = ['investigating_officer', 'forensic_lab', 'court_clerk', 'auditor', 'admin'];
+    const selectedRole = allowedRoles.includes(role) ? role : 'investigating_officer';
+    const data = await authModel.signUp({ email, password, fullName, role: selectedRole, badgeNumber, jurisdiction, department });
     res.status(201).json({ user: data.user, message: 'Account created successfully.' });
   } catch (err) {
     err.status = 400;
