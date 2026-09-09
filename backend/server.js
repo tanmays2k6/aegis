@@ -24,4 +24,10 @@ app.use('/api/compliance', complianceRoutes);
 
 app.use(errorHandler);
 
-app.listen(PORT, () => console.log(`Chain of Custody API running on port ${PORT}`));
+// Vercel invokes the exported Express application as a serverless function.
+// Locally, retain the normal long-running development server.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`Chain of Custody API running on port ${PORT}`));
+}
+
+export default app;
