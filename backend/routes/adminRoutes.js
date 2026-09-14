@@ -4,6 +4,7 @@ import {
   approveAccessRequest,
   rejectAccessRequest,
   getUsers,
+  getAdministrationOverview,
   patchUserRole,
   patchUserStatus,
 } from '../controllers/adminController.js';
@@ -18,6 +19,7 @@ router.post('/access-requests/:id/approve', requirePermission(PERMISSIONS.ACCESS
 router.post('/access-requests/:id/reject', requirePermission(PERMISSIONS.ACCESS_REQUEST_REVIEW), rejectAccessRequest);
 
 router.get('/users', requirePermission(PERMISSIONS.USER_VIEW), getUsers);
+router.get('/overview', requirePermission(PERMISSIONS.USER_VIEW), getAdministrationOverview);
 router.patch('/users/:id/role', requirePermission(PERMISSIONS.USER_ROLE_ASSIGN), patchUserRole);
 router.patch('/users/:id/status', requirePermission(PERMISSIONS.USER_SUSPEND), patchUserStatus);
 

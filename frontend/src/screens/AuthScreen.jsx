@@ -12,9 +12,9 @@ export default function AuthScreen({ onAuthed }) {
   // Access request form state
   const [fullName, setFullName] = useState('');
   const [badgeNumber, setBadgeNumber] = useState('');
-  const [department, setDepartment] = useState('Bengaluru City Police');
-  const [designation, setDesignation] = useState('Sub-Inspector');
-  const [jurisdiction, setJurisdiction] = useState('Bengaluru');
+  const [department, setDepartment] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [jurisdiction, setJurisdiction] = useState('');
   const [requestedRole, setRequestedRole] = useState('investigating_officer');
   const [reason, setReason] = useState('');
 
@@ -39,6 +39,7 @@ export default function AuthScreen({ onAuthed }) {
         await api.auth.requestAccess({
           fullName,
           officialEmail: email,
+          password,
           badgeNumber,
           department,
           designation,
@@ -46,7 +47,7 @@ export default function AuthScreen({ onAuthed }) {
           requestedRole,
           reason,
         });
-        setMessage('Access request submitted. An administrator will review your credentials before account activation.');
+        setMessage('Account created. An administrator will review your access request before activation.');
         setMode('login');
       }
     } catch (err) {
@@ -62,7 +63,7 @@ export default function AuthScreen({ onAuthed }) {
         <div className="auth-copy">
           <div className="brand-lockup">
             <span className="brand-mark"><Fingerprint size={22} /></span>
-            <span>AEGIS<span> \u2022 </span>CHAIN OF CUSTODY</span>
+            <span>AEGIS<span> • </span>CHAIN OF CUSTODY</span>
           </div>
           <p className="eyebrow">GOVERNMENT DIGITAL EVIDENCE COMMAND</p>
           <h1>Trust every<br /><em>single record.</em></h1>
@@ -73,13 +74,13 @@ export default function AuthScreen({ onAuthed }) {
             <div><strong>Strict RBAC</strong><span>Enforced separation</span></div>
           </div>
         </div>
-        <div className="auth-footer">NCRB / WOMEN SAFETY DIVISION <span>\u2022</span> SECURE INVESTIGATION SYSTEM</div>
+        <div className="auth-footer">NCRB / WOMEN SAFETY DIVISION <span>•</span> SECURE INVESTIGATION SYSTEM</div>
       </div>
       <div className="auth-panel">
         <div className="auth-panel-inner">
           <div className="mobile-brand">
             <span className="brand-mark"><Fingerprint size={20} /></span>
-            AEGIS <span>\u2022</span> CHAIN OF CUSTODY
+            AEGIS <span>•</span> CHAIN OF CUSTODY
           </div>
           <div className="auth-heading">
             <p className="eyebrow">{mode === 'login' ? 'OFFICIAL ACCESS' : 'CREDENTIAL ONBOARDING'}</p>
@@ -125,23 +126,21 @@ export default function AuthScreen({ onAuthed }) {
             <label>Official email address
               <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="officer@police.gov.in" />
             </label>
-            {mode === 'login' && (
-              <label>Password
-                <input required minLength={6} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" />
-              </label>
-            )}
+            <label>{mode === 'login' ? 'Password' : 'Create password'}
+              <input required minLength={8} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={mode === 'login' ? 'Enter password' : 'At least 8 characters'} />
+            </label>
 
             {error && <div className="form-error"><X size={15} />{error}</div>}
             {message && <div className="form-success"><Check size={15} />{message}</div>}
 
             <button className="primary-button full" disabled={busy}>
-              {busy ? 'Verifying\u2026' : mode === 'login' ? 'Sign in to command center' : 'Submit access request'}
+              {busy ? 'Verifying…' : mode === 'login' ? 'Sign in to command center' : 'Create account & submit request'}
               <ArrowUpRight size={17} />
             </button>
           </form>
 
           <div className="auth-switch">
-            {mode === 'login' ? 'New officer or auditor?' : 'Already have approved credentials?'}{' '}
+            {mode === 'login' ? 'New officer or auditor?' : 'Already have an account?'}{' '}
             <button onClick={() => { setMode(mode === 'login' ? 'request' : 'login'); setError(''); setMessage(''); }}>
               {mode === 'login' ? 'Request official access' : 'Sign in'}
             </button>

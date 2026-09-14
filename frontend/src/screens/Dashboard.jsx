@@ -27,20 +27,28 @@ export default function Dashboard({ profile, setView }) {
   const active = cases.filter((item) => item.status === 'under_investigation' || item.status === 'open').length;
   const inCourt = cases.filter((item) => item.status === 'in_court').length;
   const canReview = ['admin', 'auditor'].includes(profile.role);
+  const activity = buildActivity(cases, evidence);
+  const activityMax = Math.max(...activity.map((item) => item.total), 1);
+  const chartPoints = activity.map((item, index) => {
+    const x = (index / Math.max(activity.length - 1, 1)) * 640;
+    const y = 190 - ((item.total / activityMax) * 160);
+    return `${x},${y}`;
+  }).join(' ');
+  const areaPoints = `0,210 ${chartPoints} 640,210`;
 
   return (
     <>
       <PageHeading
-        eyebrow="COMMAND CENTER / 08 SEP 2026"
+        eyebrow={`COMMAND CENTER / ${new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date()).toUpperCase()}`}
         title={`Good morning, ${profile.full_name.split(' ')[0]}.`}
-        description="Here\u2019s the current pulse of your evidence operations."
+        description="Here’s the current pulse of your evidence operations."
         action={<button className="primary-button" onClick={() => setView('cases')}><Plus size={17} /> New case</button>}
       />
       <div className="stat-grid">
-        <StatCard label="Active investigations" value={String(active)} detail="Current open and in-progress cases" icon={BriefcaseBusiness} tone="blue" />
-        <StatCard label="Evidence items" value={String(evidence.length)} detail="Items recorded in this workspace" icon={FileCheck2} tone="teal" />
-        <StatCard label="Awaiting court" value={String(inCourt)} detail="Cases currently in court" icon={ClipboardCheck} tone="amber" />
-        <StatCard label="Chain integrity" value="100%" detail="No anomalies detected" icon={ShieldCheck} tone="green" />
+        <StatCard label="Active investigations" value={String(active)} detail="Current open and in-progress cases" icon={BriefcaseBusiness} tone="blue" onClick={() => setView('cases')} />
+        <StatCard label="Evidence items" value={String(evidence.length)} detail="Items recorded in this workspace" icon={FileCheck2} tone="teal" onClick={() => setView('evidence')} />
+        <StatCard label="Awaiting court" value={String(inCourt)} detail="Cases currently in court" icon={ClipboardCheck} tone="amber" onClick={() => setView('cases')} />
+        <StatCard label="Chain integrity" value="—" detail="Verification has not been run" icon={ShieldCheck} tone="green" onClick={canReview ? () => setView('compliance') : undefined} />
       </div>
       <div className="dashboard-grid">
         <section className="panel activity-panel">
@@ -49,7 +57,7 @@ export default function Dashboard({ profile, setView }) {
             {canReview && <button className="text-button" onClick={() => setView('audit')}>View audit trail <ArrowUpRight size={15} /></button>}
           </div>
           <div className="chart-wrap">
-            <div className="chart-labels"><span>48</span><span>36</span><span>24</span><span>12</span><span>0</span></div>
+            <div className="chart-labels"><span>{activityMax}</span><span>{Math.ceil(activityMax * .75)}</span><span>{Math.ceil(activityMax * .5)}</span><span>{Math.ceil(activityMax * .25)}</span><span>0</span></div>
             <div className="chart">
               <div className="chart-grid"><i /><i /><i /><i /><i /></div>
               <svg viewBox="0 0 640 210" preserveAspectRatio="none">
@@ -59,16 +67,16 @@ export default function Dashboard({ profile, setView }) {
                     <stop offset="100%" stopColor="#1e78a6" stopOpacity="0" />
                   </linearGradient>
                 </defs>
-                <path d="M0 166 C45 150, 58 162, 93 128 S145 139, 177 98 S223 112, 257 116 S300 72, 335 89 S382 65, 416 90 S462 36, 493 57 S550 77, 579 38 S620 44, 640 18 V210 H0Z" fill="url(#area)" />
-                <path d="M0 166 C45 150, 58 162, 93 128 S145 139, 177 98 S223 112, 257 116 S300 72, 335 89 S382 65, 416 90 S462 36, 493 57 S550 77, 579 38 S620 44, 640 18" fill="none" stroke="#1e78a6" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+                <polygon points={areaPoints} fill="url(#area)" />
+                <polyline points={chartPoints} fill="none" stroke="#1e78a6" strokeWidth="3" vectorEffect="non-scaling-stroke" />
               </svg>
-              <div className="chart-dates"><span>01 Aug</span><span>08 Aug</span><span>15 Aug</span><span>22 Aug</span><span>29 Aug</span><span>07 Sep</span></div>
+              <div className="chart-dates">{activity.map((item) => <span key={item.key}>{item.label}</span>)}</div>
             </div>
           </div>
           <div className="chart-legend">
             <span><i className="legend-blue" />Evidence actions</span>
             <span><i className="legend-grey" />Case updates</span>
-            <strong>Last 30 days <ChevronDown size={14} /></strong>
+            <strong>Last 7 days <ChevronDown size={14} /></strong>
           </div>
         </section>
         <section className="panel chain-panel">
@@ -106,7 +114,7 @@ export default function Dashboard({ profile, setView }) {
                       <div><strong>{item.title}</strong><small>{item.file_name}</small></div>
                     </div>
                   </td>
-                  <td><span className="case-ref">{item.cases?.case_number ?? 'FIR/2025/00428'}</span></td>
+                  <td><span className="case-ref">{item.cases?.case_number ?? 'Unlinked evidence'}</span></td>
                   <td><StatusBadge status={item.status} /></td>
                   <td>{formatDate(item.created_at)}</td>
                   <td><span className="hash-text"><Hash size={13} />{shortHash(item.current_hash)}</span></td>
@@ -120,4 +128,22 @@ export default function Dashboard({ profile, setView }) {
       </section>
     </>
   );
+}
+
+function buildActivity(cases, evidence) {
+  const formatter = new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short' });
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+    return { key: date.toISOString().slice(0, 10), label: formatter.format(date), total: 0 };
+  });
+  const byDay = new Map(days.map((day) => [day.key, day]));
+  [...cases.map((item) => item.updated_at), ...evidence.map((item) => item.created_at)].forEach((value) => {
+    if (!value) return;
+    const key = new Date(value).toISOString().slice(0, 10);
+    const day = byDay.get(key);
+    if (day) day.total += 1;
+  });
+  return days;
 }

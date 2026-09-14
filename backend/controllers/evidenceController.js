@@ -1,7 +1,7 @@
 import * as evidenceModel from '../models/evidenceModel.js';
 import * as caseModel from '../models/caseModel.js';
 import * as auditModel from '../models/auditModel.js';
-import { canAccessEvidence, canAccessCase } from '../authorization/authorizationService.js';
+import { canAccessEvidence, canPerformOnCase } from '../authorization/authorizationService.js';
 import crypto from 'crypto';
 
 export async function getEvidence(req, res, next) {
@@ -16,7 +16,8 @@ export async function getEvidence(req, res, next) {
       if (!parentCase && item.case_id) {
         parentCase = await caseModel.getCaseById(item.case_id);
       }
-      if (canAccessEvidence(req.userContext, item, parentCase)) {
+      const grants = parentCase ? await caseModel.getDepartmentGrants([parentCase.id], req.userContext.department) : [];
+      if (canAccessEvidence(req.userContext, item, parentCase, grants)) {
         scoped.push(item);
       }
     }
@@ -40,14 +41,33 @@ export async function getEvidenceItem(req, res, next) {
       parentCase = await caseModel.getCaseById(item.case_id);
     }
 
-    if (!canAccessEvidence(req.userContext, item, parentCase)) {
+    const grants = parentCase ? await caseModel.getDepartmentGrants([parentCase.id], req.userContext.department) : [];
+    if (!canAccessEvidence(req.userContext, item, parentCase, grants)) {
+      await auditModel.recordSecurityEvent(req, { actorUserId: req.userContext.userId, actorEmail: req.userContext.email, eventType: 'EVIDENCE_ACCESS_DENIED', resourceType: 'evidence', resourceId: item.id, details: 'Evidence preview blocked by department ownership policy.' });
       return res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: 'You do not have authorization to view this evidence record.' },
       });
     }
 
-    res.json({ success: true, evidence: item });
+    // File bytes are fetched separately from metadata, and only here on the
+    // single-record view path — never on the list endpoint.
+    const file = await evidenceModel.getEvidenceFileById(item.id);
+
+    // Every open of a file is itself an auditable event, chained the same
+    // way as create/status-change actions, so "who viewed this" is answerable.
+    await auditModel.createAuditEntry({
+      userId: req.userContext.userId,
+      userName: req.userContext.fullName,
+      userRole: req.userContext.role,
+      action: 'Evidence viewed',
+      resourceType: 'evidence',
+      resourceId: item.id,
+      resourceName: item.title,
+      details: `Viewed by ${req.userContext.fullName} (${req.userContext.userId})`,
+    });
+
+    res.json({ success: true, evidence: { ...item, ...file } });
   } catch (err) {
     next(err);
   }
@@ -73,7 +93,9 @@ export async function postEvidence(req, res, next) {
     }
 
     // Check authorization on parent case
-    if (!canAccessCase(ctx, foundCase)) {
+    const grants = await caseModel.getDepartmentGrants([foundCase.id], ctx.department);
+    if (!canPerformOnCase(ctx, foundCase, grants, 'add_evidence')) {
+      await auditModel.recordSecurityEvent(req, { actorUserId: ctx.userId, actorEmail: ctx.email, eventType: 'EVIDENCE_ATTACH_DENIED', resourceType: 'case', resourceId: foundCase.id, details: 'Evidence attachment blocked by department ownership policy.' });
       return res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: 'You are not authorized to attach evidence to this case.' },
@@ -124,6 +146,19 @@ export async function postEvidence(req, res, next) {
     });
 
     res.status(201).json({ success: true, evidence: record });
+
+    // Fire-and-forget: propagate this evidence's hash to the independent
+    // node network for cross-node consensus. Response has already been sent
+    // to the user above, so a node network that isn't running (e.g. on the
+    // deployed Vercel build, where long-running processes aren't available)
+    // never delays or breaks the actual upload.
+    if (process.env.AEGIS_NODE_URL) {
+      fetch(`${process.env.AEGIS_NODE_URL}/records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: `evidence:${record.id}:${actualHash}:case=${caseNumber}` }),
+      }).catch(() => {}); // demo network being offline should never surface as an app error
+    }
   } catch (err) {
     err.status = 400;
     next(err);
@@ -151,7 +186,9 @@ export async function patchEvidenceStatus(req, res, next) {
     if (!parentCase && existing.case_id) {
       parentCase = await caseModel.getCaseById(existing.case_id);
     }
-    if (!canAccessEvidence(ctx, existing, parentCase)) {
+    const grants = parentCase ? await caseModel.getDepartmentGrants([parentCase.id], ctx.department) : [];
+    if (!canPerformOnCase(ctx, parentCase, grants, 'update_case')) {
+      await auditModel.recordSecurityEvent(req, { actorUserId: ctx.userId, actorEmail: ctx.email, eventType: 'EVIDENCE_STATUS_DENIED', resourceType: 'evidence', resourceId: existing.id, details: 'Evidence status update blocked by department ownership policy.' });
       return res.status(403).json({
         success: false,
         error: { code: 'FORBIDDEN', message: 'You do not have permission to change evidence in this case.' },

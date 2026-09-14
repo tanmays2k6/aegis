@@ -1,0 +1,13 @@
+AEGIS Accounts : 
+
+Admin : 
+admin@aegis.local
+pass : Aegis!Admin#2026
+
+utkarsh@gmail.com ( investigating officer )
+pass : 12345678
+
+tanmay@gmail.com ( court clerk )
+pass : 12345678
+piyush@gmail.com ( court clerk )
+pass : 12345678

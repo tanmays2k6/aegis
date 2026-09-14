@@ -96,8 +96,8 @@ function PendingScreen({ profile, onSignOut, message }) {
       </p>
       <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px', fontSize: '12px', textAlign: 'left', marginBottom: '24px' }}>
         <div><strong>Officer:</strong> {profile?.full_name || 'Officer'}</div>
-        <div><strong>Department:</strong> {profile?.department || 'Bengaluru City Police'}</div>
-        <div><strong>Jurisdiction:</strong> {profile?.jurisdiction || 'Bengaluru'}</div>
+        <div><strong>Department:</strong> {profile?.department || 'Not assigned'}</div>
+        <div><strong>Jurisdiction:</strong> {profile?.jurisdiction || 'Not assigned'}</div>
         <div><strong>Status:</strong> <span className="status-pill warning">PENDING APPROVAL</span></div>
       </div>
       <button className="secondary-button" onClick={onSignOut} style={{ margin: '0 auto' }}>

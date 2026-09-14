@@ -31,6 +31,10 @@ export default function AuditView({ search }) {
   const filtered = logs.filter((item) =>
     `${item.user_name} ${item.action} ${item.resource_name}`.toLowerCase().includes(search.toLowerCase())
   );
+  const orderedLogs = [...logs].sort((left, right) => new Date(left.created_at) - new Date(right.created_at));
+  const continuousLinks = orderedLogs.slice(1).filter((entry, index) => entry.previous_chain_hash === orderedLogs[index].chain_hash).length;
+  const chainContinuity = orderedLogs.length < 2 ? '—' : `${Math.round((continuousLinks / (orderedLogs.length - 1)) * 100)}%`;
+  const latestEvent = logs[0]?.created_at ? relativeTime(logs[0].created_at) : '—';
 
   return (
     <>
@@ -43,15 +47,15 @@ export default function AuditView({ search }) {
       <div className="audit-summary">
         <div>
           <div className="summary-icon blue"><Activity size={18} /></div>
-          <div><span>Events recorded</span><strong>1,284</strong></div>
+          <div><span>Events recorded</span><strong>{logs.length}</strong></div>
         </div>
         <div>
           <div className="summary-icon teal"><Hash size={18} /></div>
-          <div><span>Chain continuity</span><strong>100%</strong></div>
+          <div><span>Chain continuity</span><strong>{chainContinuity}</strong></div>
         </div>
         <div>
           <div className="summary-icon amber"><Clock3 size={18} /></div>
-          <div><span>Latest event</span><strong>2 min ago</strong></div>
+          <div><span>Latest event</span><strong>{latestEvent}</strong></div>
         </div>
         <div className="audit-trust"><ShieldCheck size={18} /><span>Read-only evidence of activity</span></div>
       </div>
@@ -65,8 +69,8 @@ export default function AuditView({ search }) {
               <div className="audit-line"><span className="audit-dot" /><span className="audit-connector" /></div>
               <div className="audit-icon"><Activity size={16} /></div>
               <div className="audit-body">
-                <div><strong>{item.action}</strong><span className="audit-time">{index === 0 ? '2 min ago' : formatDate(item.created_at)}</span></div>
-                <p><b>{item.user_name}</b> \u00b7 {item.details}</p>
+                <div><strong>{item.action}</strong><span className="audit-time">{relativeTime(item.created_at)}</span></div>
+                <p><b>{item.user_name}</b> · {item.details}</p>
                 <div className="audit-anchor"><Hash size={13} /> {item.chain_hash} <BadgeCheck size={14} /></div>
               </div>
               <button className="row-action" onClick={() => setSelected(item)} aria-label="Open audit entry"><ChevronRight size={16} /></button>
@@ -78,6 +82,14 @@ export default function AuditView({ search }) {
       {selected && <AuditDetailModal item={selected} onClose={() => setSelected(null)} />}
     </>
   );
+}
+
+function relativeTime(value) {
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hr ago`;
+  return formatDate(value);
 }
 
 function AuditDetailModal({ item, onClose }) {

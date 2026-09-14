@@ -135,6 +135,54 @@ export async function getUsers(req, res, next) {
   }
 }
 
+export async function getAdministrationOverview(_req, res, next) {
+  try {
+    const [{ data: profiles, error: profileError }, { data: activity, error: activityError }] = await Promise.all([
+      supabase.from('profiles').select('*').order('department', { ascending: true }),
+      supabase.from('audit_log').select('id,user_id,user_name,user_role,action,resource_name,details,created_at').order('created_at', { ascending: false }).limit(500),
+    ]);
+    if (profileError) throw profileError;
+    if (activityError) throw activityError;
+
+    const latestByUser = new Map();
+    for (const entry of activity || []) {
+      if (entry.user_id && !latestByUser.has(entry.user_id)) latestByUser.set(entry.user_id, entry);
+    }
+    const users = (profiles || []).map((profile) => {
+      const latest = latestByUser.get(profile.id);
+      return {
+        ...profile,
+        status: getUserStatus(profile.id, profile.status || ACCOUNT_STATUSES.ACTIVE),
+        last_activity_at: latest?.created_at || profile.last_activity_at || null,
+        last_activity: latest ? { action: latest.action, details: latest.details } : null,
+      };
+    });
+    const departments = Object.values(users.reduce((groups, user) => {
+      const name = user.department?.trim() || 'Unassigned';
+      const group = groups[name] || { name, user_count: 0, active_count: 0, admin_count: 0, latest_activity_at: null };
+      group.user_count += 1;
+      if (user.status === ACCOUNT_STATUSES.ACTIVE) group.active_count += 1;
+      if (user.role === ROLES.ADMIN) group.admin_count += 1;
+      if (user.last_activity_at && (!group.latest_activity_at || new Date(user.last_activity_at) > new Date(group.latest_activity_at))) group.latest_activity_at = user.last_activity_at;
+      groups[name] = group;
+      return groups;
+    }, {})).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({
+      success: true,
+      summary: {
+        total_users: users.length,
+        active_users: users.filter((user) => user.status === ACCOUNT_STATUSES.ACTIVE).length,
+        administrators: users.filter((user) => user.role === ROLES.ADMIN).length,
+        departments: departments.length,
+      },
+      departments,
+      users,
+      recent_activity: (activity || []).slice(0, 12),
+    });
+  } catch (err) { next(err); }
+}
+
 export async function patchUserRole(req, res, next) {
   try {
     const { id } = req.params;
@@ -164,7 +212,7 @@ export async function patchUserRole(req, res, next) {
       userId: ctx.userId,
       userName: ctx.fullName,
       userRole: ctx.role,
-      action: 'ROLE_CHANGED',
+      action: role === ROLES.ADMIN ? 'ADMIN_ROLE_GRANTED' : 'ROLE_CHANGED',
       resourceType: 'user',
       resourceId: id,
       resourceName: profile.full_name || profile.email,

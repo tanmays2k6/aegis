@@ -1,5 +1,7 @@
+import { supabase, supabaseAuth } from '../config/supabase.js';
 import * as authModel from '../models/authModel.js';
 import * as accessRequestModel from '../models/accessRequestModel.js';
+import * as auditModel from '../models/auditModel.js';
 import { setUserStatus, getUserStatus } from '../models/userStatusModel.js';
 import { ROLES, ACCOUNT_STATUSES } from '../authorization/roles.js';
 
@@ -12,12 +14,15 @@ const COOKIE_OPTIONS = {
 
 export async function postRequestAccess(req, res, next) {
   try {
-    const { fullName, officialEmail, badgeNumber, department, designation, jurisdiction, requestedRole, reason } = req.body;
-    if (!fullName || !officialEmail || !department || !designation || !jurisdiction || !reason) {
+    const { fullName, officialEmail, password, badgeNumber, department, designation, jurisdiction, requestedRole, reason } = req.body;
+    if (!fullName || !officialEmail || !password || !department || !designation || !jurisdiction || !reason) {
       return res.status(400).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'All required access request fields must be provided.' },
+        error: { code: 'VALIDATION_ERROR', message: 'Complete all fields, including a password of at least 8 characters.' },
       });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 8 characters.' } });
     }
 
     // Role cannot be admin
@@ -32,6 +37,27 @@ export async function postRequestAccess(req, res, next) {
         error: { code: 'DUPLICATE_REQUEST', message: 'A pending access request already exists for this email.' },
       });
     }
+
+    const { data: existingProfile, error: profileLookupError } = await supabase
+      .from('profiles').select('id').eq('email', officialEmail).maybeSingle();
+    if (profileLookupError) throw profileLookupError;
+    if (existingProfile) {
+      return res.status(409).json({ success: false, error: { code: 'ACCOUNT_EXISTS', message: 'An account already exists for this email. Sign in instead.' } });
+    }
+
+    const account = await authModel.signUp({
+      email: officialEmail,
+      password,
+      fullName,
+      role: ROLES.INVESTIGATING_OFFICER,
+      badgeNumber,
+      jurisdiction,
+      department,
+    });
+    if (!account.user || account.user.identities?.length === 0) {
+      return res.status(409).json({ success: false, error: { code: 'ACCOUNT_EXISTS', message: 'An account already exists for this email. Sign in instead.' } });
+    }
+    setUserStatus(account.user.id, ACCOUNT_STATUSES.PENDING);
 
     const requestRecord = accessRequestModel.createRequest({
       fullName,
@@ -97,8 +123,10 @@ export async function postSignUp(req, res, next) {
 }
 
 export async function postSignIn(req, res, next) {
+  let loginEmail = null;
   try {
     const { email, password } = req.body;
+    loginEmail = email;
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -109,12 +137,35 @@ export async function postSignIn(req, res, next) {
     const data = await authModel.signIn({ email, password });
     const profile = await authModel.getProfile(data.user.id);
 
+    // Best effort only: identity-provider sign-in must not fail if a database
+    // migration has not yet added the administrative activity columns.
+    const now = new Date().toISOString();
+    const { error: activityError } = await supabase.from('profiles')
+      .update({ last_login_at: now, last_activity_at: now })
+      .eq('id', data.user.id);
+    if (activityError) console.warn('Could not update sign-in activity:', activityError.message);
+
     // Resolve status and role
     let role = profile?.role || ROLES.INVESTIGATING_OFFICER;
     if (role === 'officer') role = ROLES.INVESTIGATING_OFFICER;
     if (role === 'forensic_lab') role = ROLES.FORENSIC_OFFICER;
 
     const status = getUserStatus(data.user.id, profile?.status || ACCOUNT_STATUSES.ACTIVE);
+
+    try {
+      await auditModel.createAuditEntry({
+        userId: data.user.id,
+        userName: profile?.full_name || profile?.name || data.user.email,
+        userRole: role,
+        action: 'SIGN_IN_SUCCEEDED',
+        resourceType: 'identity',
+        resourceId: data.user.id,
+        resourceName: data.user.email,
+        details: 'Authenticated session established.',
+      });
+    } catch (auditError) {
+      console.warn('Could not record successful sign-in:', auditError.message);
+    }
 
     // Set secure HttpOnly cookies
     if (data.session) {
@@ -131,6 +182,12 @@ export async function postSignIn(req, res, next) {
       profile: { ...profile, role, status },
     });
   } catch (err) {
+    await auditModel.recordSecurityEvent(req, {
+      actorEmail: loginEmail,
+      eventType: 'SIGN_IN_FAILED',
+      outcome: 'failed',
+      details: 'Invalid credentials or identity-provider rejection.',
+    });
     err.status = 401;
     next(err);
   }
@@ -146,7 +203,7 @@ export async function postRefreshToken(req, res, next) {
       });
     }
 
-    const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+    const { data, error } = await supabaseAuth.auth.refreshSession({ refresh_token: refreshToken });
     if (error || !data.session) {
       res.clearCookie('coc_access_token');
       res.clearCookie('coc_refresh_token');

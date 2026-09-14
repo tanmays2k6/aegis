@@ -30,9 +30,9 @@ export function PageHeading({ eyebrow, title, description, action }) {
   );
 }
 
-export function StatCard({ label, value, detail, icon: Icon, tone }) {
-  return (
-    <div className="stat-card">
+export function StatCard({ label, value, detail, icon: Icon, tone, onClick }) {
+  const cardContents = (
+    <>
       <div className={`stat-icon ${tone}`}>
         <Icon size={19} />
       </div>
@@ -42,8 +42,12 @@ export function StatCard({ label, value, detail, icon: Icon, tone }) {
         <small>{detail}</small>
       </div>
       <ChevronRight size={16} className="stat-arrow" />
-    </div>
+    </>
   );
+
+  return onClick
+    ? <button type="button" className="stat-card stat-card-action" onClick={onClick} aria-label={`Open ${label}`}>{cardContents}</button>
+    : <div className="stat-card">{cardContents}</div>;
 }
 
 export function Modal({ eyebrow, title, onClose, children }) {

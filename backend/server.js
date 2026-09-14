@@ -24,21 +24,27 @@ app.use(
   })
 );
 
-// 2. Strict CORS Configuration (Restrict to configured origin)
+// 2. Strict CORS Configuration (Support localhost/127.0.0.1 on any port, FRONTEND_URL, and Vercel domains)
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
+  process.env.FRONTEND_URL,
   'http://localhost:5173',
   'http://localhost:3000',
-];
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow non-browser requests or allowed frontend origins
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+        /\.vercel\.app$/.test(origin)
+      ) {
         callback(null, true);
       } else {
-        callback(new Error(`Origin ${origin} is not permitted by AEGIS CORS policy.`));
+        callback(null, false);
       }
     },
     credentials: true,

@@ -57,8 +57,13 @@ export const ROLE_PERMISSIONS = Object.freeze({
 
   [ROLES.COURT_CLERK]: Object.freeze([
     PERMISSIONS.CASE_VIEW_ASSIGNED,
+    // Court registries open matters submitted to the court. They remain
+    // restricted to their own department's cases after registration.
+    PERMISSIONS.CASE_CREATE,
     PERMISSIONS.CASE_UPDATE,
     PERMISSIONS.EVIDENCE_VIEW,
+    PERMISSIONS.EVIDENCE_CREATE,
+    PERMISSIONS.EVIDENCE_UPLOAD,
     PERMISSIONS.EVIDENCE_STATUS_CHANGE,
   ]),
 
@@ -80,11 +85,16 @@ export const ROLE_PERMISSIONS = Object.freeze({
     PERMISSIONS.ACCESS_REQUEST_VIEW,
     PERMISSIONS.ACCESS_REQUEST_REVIEW,
     PERMISSIONS.CASE_VIEW,
+    // Administrators must be able to open a case when operating a command
+    // centre. Previously this omission caused a misleading 403 response.
+    PERMISSIONS.CASE_CREATE,
     PERMISSIONS.CASE_ASSIGN,
     PERMISSIONS.SYSTEM_MANAGE,
     PERMISSIONS.AUDIT_VIEW,
     PERMISSIONS.COMPLIANCE_VIEW,
     PERMISSIONS.EVIDENCE_VIEW,
+    PERMISSIONS.EVIDENCE_CREATE,
+    PERMISSIONS.EVIDENCE_UPLOAD,
     PERMISSIONS.EVIDENCE_VERIFY,
     PERMISSIONS.EVIDENCE_STATUS_CHANGE,
     PERMISSIONS.CASE_UPDATE,

@@ -15,6 +15,15 @@ export async function getCaseById(id) {
   return data;
 }
 
+export async function getRegisteredDepartments() {
+  const { data, error } = await supabase.from('profiles').select('department');
+  if (error) throw error;
+  return [...new Set((data || [])
+    .map((profile) => String(profile.department || '').trim())
+    .filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right));
+}
+
 export async function createCase(payload) {
   const { data, error } = await supabase.from('cases').insert(payload).select().maybeSingle();
   if (error) throw error;
@@ -23,6 +32,21 @@ export async function createCase(payload) {
 
 export async function updateCase(id, payload) {
   const { data, error } = await supabase.from('cases').update(payload).eq('id', id).select().maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getDepartmentGrants(caseIds, department) {
+  const validCaseIds = caseIds.filter(Boolean);
+  if (!validCaseIds.length || !department) return [];
+  const { data, error } = await supabase.from('case_department_access')
+    .select('*').in('case_id', validCaseIds).ilike('department', department).eq('active', true);
+  if (error) throw error;
+  return (data || []).filter((grant) => !grant.expires_at || new Date(grant.expires_at) > new Date());
+}
+
+export async function grantDepartmentAccess(payload) {
+  const { data, error } = await supabase.from('case_department_access').upsert(payload, { onConflict: 'case_id,department' }).select().maybeSingle();
   if (error) throw error;
   return data;
 }

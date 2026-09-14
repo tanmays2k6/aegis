@@ -2,14 +2,23 @@ import {
   ArrowUpRight, BadgeCheck, BookOpen, Check, ChevronRight,
   Clock3, ShieldCheck, Users, Zap,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { PageHeading } from '../components/Shared.jsx';
 import { api } from '../lib/api.js';
 
 export default function ComplianceView() {
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
+  const [verification, setVerification] = useState(null);
+  const [verifying, setVerifying] = useState(false);
   const load = () => api.compliance.get().then((data) => { setSummary(data.compliance); setError(''); }).catch((requestError) => setError(requestError.message));
   useEffect(() => { load(); }, []);
+  async function verifyIntegrity() {
+    setVerifying(true); setError('');
+    try { setVerification((await api.compliance.verifyIntegrity()).verification); }
+    catch (requestError) { setError(requestError.message || 'Integrity verification could not be completed.'); }
+    setVerifying(false);
+  }
   const checks = [
     { label: 'Evidence records', detail: 'Records currently stored in this workspace', value: String(summary?.evidenceRecords ?? '—'), tone: 'blue' },
     { label: 'Audit events', detail: 'Recorded, hash-linked system events', value: String(summary?.auditEvents ?? '—'), tone: 'blue' },
@@ -22,16 +31,16 @@ export default function ComplianceView() {
         eyebrow="COMPLIANCE / SYSTEM ASSURANCE"
         title="Compliance posture"
         description="A clear, court-ready view of how your system protects digital evidence."
-        action={<button className="primary-button" onClick={load}><ShieldCheck size={17} /> Refresh metrics</button>}
+        action={<button className="primary-button" onClick={verifyIntegrity} disabled={verifying}><ShieldCheck size={17} /> {verifying ? 'Verifying…' : 'Verify integrity'}</button>}
       />
       <div className="compliance-hero">
         <div className="compliance-seal"><ShieldCheck size={32} /></div>
         <div>
           <p className="eyebrow">CURRENT ASSESSMENT</p>
-          <h2>{error ? 'Metrics unavailable' : 'Live system metrics'}</h2>
-          <p>{error || 'Counts are read from the connected database. Chain verification is explicitly marked until implemented.'}</p>
+          <h2>{error ? 'Metrics unavailable' : verification?.valid ? 'Integrity verified' : verification ? 'Integrity issue detected' : 'Live system metrics'}</h2>
+          <p>{error || (verification ? `${verification.evidenceChecked} evidence files, ${verification.versionsChecked} versions, and ${verification.ledgerEntriesChecked} ledger entries checked.` : 'Run integrity verification to validate evidence bytes and ledger links.')}</p>
         </div>
-        <div className="compliance-score"><strong>—</strong><span>/ 100</span><small>Not assessed</small></div>
+        <div className="compliance-score"><strong>{verification ? (verification.valid ? '100' : '0') : '—'}</strong><span>/ 100</span><small>{verification ? (verification.valid ? 'Verified' : `${verification.failures.length} issue(s)`) : 'Not assessed'}</small></div>
       </div>
       <div className="compliance-grid">
         <section className="panel">
@@ -91,4 +100,3 @@ export default function ComplianceView() {
     </>
   );
 }
-import { useEffect, useState } from 'react';

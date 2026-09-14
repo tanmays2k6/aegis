@@ -1,7 +1,10 @@
 import { supabase } from '../config/supabase.js';
 
 export async function getAllEvidence({ status, search } = {}) {
-  let query = supabase.from('evidence').select('id, case_id, title, document_type, description, file_name, file_type, file_size, current_hash, status, version_number, uploaded_by, created_at, updated_at, cases(case_number,title)').order('created_at', { ascending: false });
+  let query = supabase
+    .from('evidence')
+    .select('id, case_id, title, document_type, description, file_name, file_type, file_size, current_hash, status, version_number, uploaded_by, created_at, updated_at, cases(id,case_number,title,created_by,assigned_officer,owner_department,jurisdiction)')
+    .order('created_at', { ascending: false });
   if (status && status !== 'all') query = query.eq('status', status);
   if (search) query = query.or(`title.ilike.%${search}%,file_name.ilike.%${search}%,current_hash.ilike.%${search}%`);
   const { data, error } = await query;
@@ -10,7 +13,19 @@ export async function getAllEvidence({ status, search } = {}) {
 }
 
 export async function getEvidenceById(id) {
-  const { data, error } = await supabase.from('evidence').select('id, case_id, title, document_type, description, file_name, file_type, file_size, current_hash, status, version_number, uploaded_by, created_at, updated_at, cases(case_number,title)').eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('evidence')
+    .select('id, case_id, title, document_type, description, file_name, file_type, file_size, current_hash, status, version_number, uploaded_by, created_at, updated_at, cases(id,case_number,title,created_by,assigned_officer,owner_department,jurisdiction)')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Deliberately separate from getEvidenceById: file bytes are only ever fetched
+// for a single-record "view" action, never for list views, to keep list queries light.
+export async function getEvidenceFileById(id) {
+  const { data, error } = await supabase.from('evidence').select('file_content, file_type, file_name').eq('id', id).maybeSingle();
   if (error) throw error;
   return data;
 }
@@ -38,7 +53,14 @@ export async function updateEvidenceStatus(id, status) {
 }
 
 export async function findCaseByNumber(caseNumber) {
-  const { data, error } = await supabase.from('cases').select('id, case_number, title').eq('case_number', caseNumber).maybeSingle();
+  // The authorization check needs the ownership field as well as identity
+  // fields. Omitting owner_department makes the owning department appear to
+  // be an external grantee and blocks its own evidence upload.
+  const { data, error } = await supabase
+    .from('cases')
+    .select('id, case_number, title, created_by, assigned_officer, owner_department, jurisdiction')
+    .eq('case_number', caseNumber)
+    .maybeSingle();
   if (error) throw error;
   return data;
 }

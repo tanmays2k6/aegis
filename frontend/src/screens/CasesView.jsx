@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  ArrowUpRight, ChevronDown, ChevronRight, LockKeyhole, Plus,
+  ArrowUpRight, ChevronDown, ChevronRight, LockKeyhole, Plus, Share2,
   ShieldCheck, SlidersHorizontal, X,
 } from 'lucide-react';
 import { PageHeading, StatusBadge, Modal } from '../components/Shared.jsx';
@@ -15,7 +15,7 @@ export default function CasesView({ profile, search }) {
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
-    api.cases.list().then((data) => setCases(data.cases ?? [])).catch(() => setLoadError('Cases could not be loaded.'));
+    api.cases.list().then((data) => setCases(data.cases ?? [])).catch((error) => setLoadError(error.message || 'Cases could not be loaded.'));
   }, []);
 
   const filtered = cases.filter((item) =>
@@ -65,7 +65,7 @@ export default function CasesView({ profile, search }) {
       {showCreate && (
         <CreateCaseModal profile={profile} onClose={() => setShowCreate(false)} onCreated={(record) => { setCases((current) => [record, ...current]); setShowCreate(false); }} />
       )}
-      {selected && <CaseDetailModal record={selected} onClose={() => setSelected(null)} />}
+      {selected && <CaseDetailModal record={selected} profile={profile} onClose={() => setSelected(null)} />}
     </>
   );
 }
@@ -85,9 +85,10 @@ function CreateCaseModal({ profile, onClose, onCreated }) {
     try {
       const data = await api.cases.create({
         case_number: number, title, description, priority,
-        jurisdiction: profile.jurisdiction ?? 'Bengaluru',
+        jurisdiction: profile.jurisdiction || '',
       });
-      onCreated(data.case ?? { ...{ case_number: number, title, description, priority }, id: crypto.randomUUID(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), status: 'open' });
+      if (!data.case) throw new Error('The case was saved, but the server did not return its record. Refresh the registry before creating another case.');
+      onCreated(data.case);
     } catch (requestError) {
       setError(requestError.message || 'Could not register this case. Please check the details.');
     }
@@ -120,7 +121,7 @@ function CreateCaseModal({ profile, onClose, onCreated }) {
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
           <button className="primary-button" disabled={busy}>
-            {busy ? 'Registering\u2026' : 'Register case'}<ArrowUpRight size={16} />
+            {busy ? 'Registering…' : 'Register case'}<ArrowUpRight size={16} />
           </button>
         </div>
       </form>
@@ -128,7 +129,43 @@ function CreateCaseModal({ profile, onClose, onCreated }) {
   );
 }
 
-function CaseDetailModal({ record, onClose }) {
+function CaseDetailModal({ record, profile, onClose }) {
+  const [sharing, setSharing] = useState(false);
+  const [department, setDepartment] = useState('');
+  const [reason, setReason] = useState('');
+  const [permissions, setPermissions] = useState(['view']);
+  const [departments, setDepartments] = useState([]);
+  const [departmentsError, setDepartmentsError] = useState('');
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const ownsCase = record.owner_department && record.owner_department.trim().toLowerCase() === String(profile.department || '').trim().toLowerCase();
+
+  useEffect(() => {
+    if (!sharing || !ownsCase) return;
+    setDepartmentsError('');
+    api.cases.listDepartments()
+      .then((data) => setDepartments(data.departments || []))
+      .catch(() => setDepartmentsError('Recipient departments could not be loaded.'));
+  }, [sharing, ownsCase]);
+
+  function togglePermission(permission) {
+    setPermissions((current) => current.includes(permission) ? current.filter((item) => item !== permission) : [...current, permission]);
+  }
+
+  async function shareCase(event) {
+    event.preventDefault();
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await api.cases.grantDepartmentAccess(record.id, { department, permissions, reason });
+      setMessage(`Access granted to ${department}.`);
+      setDepartment(''); setReason(''); setPermissions(['view']);
+    } catch (requestError) {
+      setError(requestError.message || 'Could not grant department access.');
+    }
+    setBusy(false);
+  }
+
   return (
     <Modal title={record.title} eyebrow={record.case_number} onClose={onClose}>
       <div className="detail-hero">
@@ -147,6 +184,31 @@ function CaseDetailModal({ record, onClose }) {
         <LockKeyhole size={17} />
         <div><strong>Evidence access is traceable</strong><p>Every view, download, and update in this case is added to the immutable audit trail.</p></div>
       </div>
+      {ownsCase && (
+        <div className="case-sharing">
+          <button type="button" className="secondary-button" onClick={() => setSharing((current) => !current)}><Share2 size={16} /> {sharing ? 'Close sharing' : 'Share with a department'}</button>
+          {sharing && <form className="modal-form" onSubmit={shareCase}>
+            <p className="sharing-note">The recipient department receives only the permissions you select. Every grant is recorded in the case audit trail.</p>
+            <label>Recipient department
+              <select required value={department} onChange={(event) => setDepartment(event.target.value)} disabled={!departments.length}>
+                <option value="">{departments.length ? 'Select a department' : 'No other registered department found'}</option>
+                {departments.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            {departmentsError && <div className="form-error"><X size={15} />{departmentsError}</div>}
+            <label>Reason for sharing<textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="State why this department needs access." /></label>
+            <div className="sharing-permissions">
+              <strong>Permissions</strong>
+              <label><input type="checkbox" checked readOnly /> View case</label>
+              <label><input type="checkbox" checked={permissions.includes('add_evidence')} onChange={() => togglePermission('add_evidence')} /> Add evidence</label>
+              <label><input type="checkbox" checked={permissions.includes('update_case')} onChange={() => togglePermission('update_case')} /> Update case</label>
+            </div>
+            {error && <div className="form-error"><X size={15} />{error}</div>}
+            {message && <div className="form-success">{message}</div>}
+            <button className="primary-button" disabled={busy}>{busy ? 'Granting…' : 'Grant department access'}<Share2 size={16} /></button>
+          </form>}
+        </div>
+      )}
     </Modal>
   );
 }

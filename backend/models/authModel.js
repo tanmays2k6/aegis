@@ -1,7 +1,7 @@
-import { supabase } from '../config/supabase.js';
+import { supabase, supabaseAuth } from '../config/supabase.js';
 
 export async function signUp({ email, password, fullName, role, badgeNumber, jurisdiction, department }) {
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await supabaseAuth.auth.signUp({
     email,
     password,
     options: { data: { full_name: fullName, role, badge_number: badgeNumber, jurisdiction, department } },
@@ -11,7 +11,7 @@ export async function signUp({ email, password, fullName, role, badgeNumber, jur
 }
 
 export async function signIn({ email, password }) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;
 }

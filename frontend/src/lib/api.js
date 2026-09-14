@@ -1,4 +1,8 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use the local Express server only during development. On Vercel, the API is
+// routed through this same domain at /api, even if an environment variable was
+// not supplied during the frontend build.
+const API_BASE = import.meta.env.VITE_API_URL
+  || (import.meta.env.DEV ? 'http://localhost:3001/api' : '/api');
 
 let memoryToken = null;
 
@@ -49,9 +53,11 @@ export const api = {
       const q = new URLSearchParams(params).toString();
       return request(`/cases${q ? `?${q}` : ''}`);
     },
+    listDepartments: () => request('/cases/departments'),
     get: (id) => request(`/cases/${id}`),
     create: (body) => request('/cases', { method: 'POST', body: JSON.stringify(body) }),
     update: (id, body) => request(`/cases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    grantDepartmentAccess: (id, body) => request(`/cases/${id}/department-access`, { method: 'POST', body: JSON.stringify(body) }),
   },
   evidence: {
     list: (params = {}) => {
@@ -70,8 +76,10 @@ export const api = {
   },
   compliance: {
     get: () => request('/compliance'),
+    verifyIntegrity: () => request('/compliance/verify', { method: 'POST' }),
   },
   admin: {
+    getOverview: () => request('/admin/overview'),
     getAccessRequests: () => request('/admin/access-requests'),
     approveAccessRequest: (id, body) => request(`/admin/access-requests/${id}/approve`, { method: 'POST', body: JSON.stringify(body) }),
     rejectAccessRequest: (id, body) => request(`/admin/access-requests/${id}/reject`, { method: 'POST', body: JSON.stringify(body) }),

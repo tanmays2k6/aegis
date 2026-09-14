@@ -1,7 +1,8 @@
-import { supabase } from '../config/supabase.js';
+import { supabase, supabaseAuth } from '../config/supabase.js';
 import { getUserStatus } from '../models/userStatusModel.js';
-import { getPermissionsForRole, hasPermission } from '../authorization/authorizationService.js';
+import { getPermissionsForRole, hasPermission, normalizeRole } from '../authorization/authorizationService.js';
 import { ACCOUNT_STATUSES } from '../authorization/roles.js';
+import * as auditModel from '../models/auditModel.js';
 
 export async function getUserFromToken(req) {
   // Check authorization header or secure cookie
@@ -15,7 +16,7 @@ export async function getUserFromToken(req) {
 
   if (!token) return null;
 
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } = await supabaseAuth.auth.getUser(token);
   if (error || !data.user) return null;
 
   const { data: profile, error: profileError } = await supabase
@@ -27,9 +28,7 @@ export async function getUserFromToken(req) {
   if (profileError || !profile) return null;
 
   // Resolve canonical role
-  let role = profile.role;
-  if (role === 'officer') role = 'investigating_officer';
-  if (role === 'forensic_lab') role = 'forensic_officer';
+  const role = normalizeRole(profile.role);
 
   // Resolve status
   const status = getUserStatus(data.user.id, profile.status || ACCOUNT_STATUSES.ACTIVE);
@@ -58,6 +57,7 @@ export async function requireAuth(req, res, next) {
   try {
     const auth = await getUserFromToken(req);
     if (!auth) {
+      await auditModel.recordSecurityEvent(req, { eventType: 'AUTHENTICATION_REQUIRED', outcome: 'denied', details: 'Request blocked because no valid session was supplied.' });
       return res.status(401).json({
         success: false,
         error: { code: 'UNAUTHORIZED', message: 'Authentication required.' },
@@ -65,6 +65,7 @@ export async function requireAuth(req, res, next) {
     }
 
     if (auth.context.status !== ACCOUNT_STATUSES.ACTIVE) {
+      await auditModel.recordSecurityEvent(req, { actorUserId: auth.context.userId, actorEmail: auth.context.email, eventType: 'INACTIVE_ACCOUNT_ACCESS_DENIED', outcome: 'denied', details: `Account status: ${auth.context.status}` });
       const statusMessages = {
         [ACCOUNT_STATUSES.PENDING]: 'Your access request is currently pending administrative review.',
         [ACCOUNT_STATUSES.SUSPENDED]: 'This account has been suspended. Please contact your department administrator.',
@@ -91,6 +92,7 @@ export async function requireAuth(req, res, next) {
 export function requirePermission(permission) {
   return (req, res, next) => {
     if (!req.userContext || !hasPermission(req.userContext, permission)) {
+      void auditModel.recordSecurityEvent(req, { actorUserId: req.userContext?.userId, actorEmail: req.userContext?.email, eventType: 'PERMISSION_DENIED', outcome: 'denied', details: `Missing permission: ${permission}` });
       return res.status(403).json({
         success: false,
         error: {

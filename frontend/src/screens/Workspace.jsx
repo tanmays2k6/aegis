@@ -30,7 +30,7 @@ export default function Workspace({ profile, email, onSignOut }) {
 
   const displayProfile = profile ?? {
     id: '', full_name: email.split('@')[0], role: 'investigating_officer',
-    badge_number: null, jurisdiction: 'Bengaluru', department: 'Bengaluru City Police',
+    badge_number: null, jurisdiction: 'Not assigned', department: 'Not assigned',
     status: 'active',
   };
 
@@ -39,7 +39,7 @@ export default function Workspace({ profile, email, onSignOut }) {
   const canReview = isAdmin || isAuditor;
 
   const visibleNavItems = navItems.filter((item) => {
-    if (item.id === 'admin') return isAdmin;
+    if (item.id === 'admin') return false;
     if (item.id === 'audit' || item.id === 'compliance') return canReview;
     return true;
   });
@@ -70,18 +70,25 @@ export default function Workspace({ profile, email, onSignOut }) {
         <div className="sidebar-top">
           <div className="brand-lockup">
             <span className="brand-mark"><Fingerprint size={20} /></span>
-            <span>AEGIS<span> \u2022 </span>CUSTODY</span>
+            <span>AEGIS<span> • </span>CUSTODY</span>
           </div>
           <button className="sidebar-close" onClick={() => setMobileNav(false)}><X size={18} /></button>
         </div>
         <div className="workspace-label"><span className="live-dot" />SECURE ACCESS ENFORCED</div>
         <nav>
+          <p className="nav-section-label">OPERATIONS</p>
           {visibleNavItems.map(({ id, label, icon: Icon }) => (
             <button key={id} className={view === id ? 'active' : ''} onClick={() => { setView(id); setMobileNav(false); }}>
               <Icon size={18} /><span>{label}</span>
               {id === 'audit' && <span className="nav-count">Live</span>}
             </button>
           ))}
+          {isAdmin && <>
+            <p className="nav-section-label admin">ADMINISTRATION</p>
+            <button className={view === 'admin' ? 'active' : ''} onClick={() => { setView('admin'); setMobileNav(false); }}>
+              <Users size={18} /><span>Admin control center</span><span className="nav-count">Admin</span>
+            </button>
+          </>}
         </nav>
         <div className="sidebar-bottom">
           <div className="security-card">
@@ -114,7 +121,7 @@ export default function Workspace({ profile, email, onSignOut }) {
             <div className="global-search-wrap">
               <div className="global-search">
                 <Search size={16} />
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search cases, evidence, hashes\u2026" aria-label="Global search" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search cases, evidence, hashes…" aria-label="Global search" />
               </div>
               {search.trim().length >= 2 && (
                 <div className="search-results">
@@ -127,7 +134,7 @@ export default function Workspace({ profile, email, onSignOut }) {
             </div>
             <div className="notification-wrap">
               <button className="icon-button notification" onClick={() => setNotificationsOpen((open) => !open)} aria-label="Notifications"><Bell size={18} /><i /></button>
-              {notificationsOpen && <div className="notification-popover"><strong>Notifications</strong><p>Security protocol: Zero-Trust session active.</p></div>}
+              {notificationsOpen && <div className="notification-popover"><strong>Notifications</strong><p>No new notifications.</p></div>}
             </div>
             <div className="topbar-avatar">{(displayProfile.full_name || 'OF').slice(0, 2).toUpperCase()}</div>
           </div>

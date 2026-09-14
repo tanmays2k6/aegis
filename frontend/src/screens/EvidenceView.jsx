@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BadgeCheck, ChevronRight, FileCheck2, FileSearch, FileText,
   Hash, LockKeyhole, ShieldCheck, UploadCloud, X,
@@ -49,7 +49,7 @@ export default function EvidenceView({ profile, search }) {
             <div className="evidence-file-icon"><FileText size={20} /></div>
             <div className="evidence-main">
               <div className="evidence-title"><h3>{item.title}</h3><StatusBadge status={item.status} /></div>
-              <p>{item.file_name} <span>\u2022</span> {formatSize(item.file_size)} <span>\u2022</span> {item.cases?.case_number ?? 'Unassigned'}</p>
+              <p>{item.file_name} <span>•</span> {formatSize(item.file_size)} <span>•</span> {item.cases?.case_number ?? 'Unassigned'}</p>
               <div className="evidence-hash"><Hash size={14} /><span>{shortHash(item.current_hash)}</span><small>v{item.version_number}</small></div>
             </div>
             <div className="evidence-meta"><span>Added</span><strong>{formatDate(item.created_at)}</strong></div>
@@ -62,15 +62,27 @@ export default function EvidenceView({ profile, search }) {
       {showUpload && (
         <UploadModal profile={profile} onClose={() => setShowUpload(false)} onCreated={(record) => { setItems((current) => [record, ...current]); setShowUpload(false); }} />
       )}
-      {selected && <EvidenceDetailModal item={selected} onClose={() => setSelected(null)} />}
+      {selected && <EvidenceDetailModal item={selected} profile={profile} onClose={() => setSelected(null)} />}
     </>
   );
 }
 
-function EvidenceDetailModal({ item, onClose }) {
+function EvidenceDetailModal({ item, profile, onClose }) {
+  const [full, setFull] = useState(null);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    api.evidence.get(item.id)
+      .then((data) => { if (!cancelled) setFull(data.evidence ?? null); })
+      .catch(() => { if (!cancelled) setLoadError('Could not load the file for preview.'); });
+    return () => { cancelled = true; };
+  }, [item.id]);
+
   return (
     <Modal title={item.title} eyebrow="EVIDENCE RECORD" onClose={onClose}>
       <div className="detail-hero"><StatusBadge status={item.status} /><span className="detail-location">{item.cases?.case_number ?? 'Unassigned case'}</span></div>
+      <WatermarkedPreview file={full} profile={profile} loadError={loadError} />
       <div className="detail-grid">
         <div><span>File</span><strong>{item.file_name}</strong></div>
         <div><span>Type</span><strong>{item.document_type.replaceAll('_', ' ')}</strong></div>
@@ -80,6 +92,113 @@ function EvidenceDetailModal({ item, onClose }) {
       <div className="notice-box"><Hash size={17} /><div><strong>SHA-256 fingerprint</strong><p className="hash-full">{item.current_hash}</p></div></div>
     </Modal>
   );
+}
+
+// Renders the file with the viewer's identity burned into the DISPLAY only.
+// The original file_content bytes are never touched, so current_hash stays
+// valid forever — only what's drawn on screen carries the watermark.
+function WatermarkedPreview({ file, profile, loadError }) {
+  const canvasRef = useRef(null);
+  const [pdfUrl, setPdfUrl] = useState('');
+
+  useEffect(() => {
+    if (!file?.file_content || file.file_type !== 'application/pdf') {
+      setPdfUrl('');
+      return undefined;
+    }
+    const bytes = Uint8Array.from(atob(file.file_content), (character) => character.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    setPdfUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  useEffect(() => {
+    if (!file?.file_content || !file.file_type?.startsWith('image/')) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const bytes = Uint8Array.from(atob(file.file_content), (c) => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: file.file_type });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      // Render at a higher internal resolution than the CSS display width so
+      // the image stays sharp — CSS max-width scales it down responsively,
+      // but we don't want to have downsampled the source before that.
+      const maxWidth = 1000;
+      const scale = Math.min(1, maxWidth / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      // Sparse, light, single-pass watermark: identifies the viewer without
+      // obscuring the evidence itself. Evidence needs to stay inspectable.
+      const label = `${profile?.full_name || 'Unknown viewer'}  •  ID ${profile?.id?.slice(0, 8) || '—'}  •  ${new Date().toLocaleString()}`;
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(-Math.PI / 10);
+      ctx.font = '500 15px sans-serif';
+      ctx.textAlign = 'center';
+      const stepX = Math.max(canvas.width * 0.9, 500);
+      const stepY = Math.max(canvas.height * 0.35, 220);
+      for (let y = -canvas.height; y < canvas.height * 1.5; y += stepY) {
+        for (let x = -canvas.width; x < canvas.width * 1.5; x += stepX) {
+          ctx.fillStyle = 'rgba(255,255,255,0.21)';
+          ctx.fillText(label, x + 1, y + 1);
+          ctx.fillStyle = 'rgba(0,0,0,0.21)';
+          ctx.fillText(label, x, y);
+        }
+      }
+      ctx.restore();
+
+      // A clear footer signature makes the viewer identity visible even when
+      // a screenshot crops away the repeated watermark across the image.
+      const stamp = `Viewed by ${profile?.full_name || 'Unknown'} • ID ${profile?.id?.slice(0, 8) || '—'} • ${new Date().toLocaleString()}`;
+      ctx.font = '600 13px sans-serif';
+      const padding = 8;
+      const textWidth = ctx.measureText(stamp).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(0, canvas.height - 28, textWidth + padding * 2, 28);
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'left';
+      ctx.fillText(stamp, padding, canvas.height - 10);
+
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }, [file, profile]);
+
+  if (loadError) return <div className="form-error"><X size={15} />{loadError}</div>;
+  if (!file) return <div className="empty-state">Loading preview…</div>;
+  if (file.file_type === 'application/pdf') {
+    const viewerStamp = `Viewed by ${profile?.full_name || 'Unknown viewer'} • ID ${profile?.id?.slice(0, 8) || '—'} • ${new Date().toLocaleString()}`;
+    return (
+      <div className="pdf-preview">
+        <div className="pdf-preview-label"><FileText size={16} /> Secure document preview</div>
+        <div className="pdf-viewer-frame">
+          {pdfUrl && <iframe src={pdfUrl} title={`Preview of ${file.file_name}`} />}
+          <div className="pdf-watermark" aria-hidden="true">
+            {Array.from({ length: 18 }, (_, index) => <span key={index}>{viewerStamp}</span>)}
+          </div>
+          <div className="pdf-viewer-signature" aria-hidden="true">{viewerStamp}</div>
+        </div>
+      </div>
+    );
+  }
+  if (!file.file_type?.startsWith('image/')) {
+    return (
+      <div className="notice-box">
+        <FileText size={17} />
+        <div>
+          <strong>Preview not available for this file type</strong>
+          <p>Viewed by {profile?.full_name || 'Unknown'} (ID {profile?.id?.slice(0, 8) || '—'}) at {new Date().toLocaleString()} — this view has been logged.</p>
+        </div>
+      </div>
+    );
+  }
+  return <canvas ref={canvasRef} style={{ maxWidth: '100%', borderRadius: 8, display: 'block', margin: '0 0 16px' }} />;
 }
 
 function UploadModal({ profile, onClose, onCreated }) {
@@ -150,7 +269,7 @@ function UploadModal({ profile, onClose, onCreated }) {
         </div>
         <label className="upload-zone">
           {file ? (
-            <><FileCheck2 size={25} /><strong>{file.name}</strong><span>{formatSize(file.size)} \u00b7 ready to fingerprint</span></>
+            <><FileCheck2 size={25} /><strong>{file.name}</strong><span>{formatSize(file.size)} · ready to fingerprint</span></>
           ) : (
             <><UploadCloud size={25} /><strong>Drop a file here or browse</strong><span>PDF, image, document or archive up to 10 MB</span></>
           )}
@@ -167,7 +286,7 @@ function UploadModal({ profile, onClose, onCreated }) {
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
           <button className="primary-button" disabled={busy}>
-            {busy ? 'Anchoring\u2026' : 'Anchor evidence'}<ShieldCheck size={16} />
+            {busy ? 'Anchoring…' : 'Anchor evidence'}<ShieldCheck size={16} />
           </button>
         </div>
       </form>
