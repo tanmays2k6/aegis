@@ -1,0 +1,20 @@
+services:
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    volumes:
+      - clamav-db:/var/lib/clamav
+    networks: [aegis-internal]
+    # No ports: clamd is reachable only by containers on this network.
+  backend:
+    build: .
+    environment:
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+    depends_on: [clamav]
+    networks: [aegis-internal]
+volumes:
+  clamav-db:
+networks:
+  aegis-internal:
+    internal: true

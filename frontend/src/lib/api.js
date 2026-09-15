@@ -68,6 +68,10 @@ export const api = {
     create: (body) => request('/evidence', { method: 'POST', body: JSON.stringify(body) }),
     updateStatus: (id, status) => request(`/evidence/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   },
+  uploads: {
+    create: (body) => request('/uploads', { method: 'POST', body: JSON.stringify(body) }),
+    securityStatus: (uploadId) => request(`/uploads/${uploadId}/security-status`),
+  },
   audit: {
     list: (params = {}) => {
       const q = new URLSearchParams(params).toString();

@@ -10,7 +10,10 @@
     "start": "node backend/server.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:security": "node backend/tests/securityVerification.js",
+    "test:malware": "node backend/tests/malwarePipeline.test.js",
+    "test": "npm run test:security && npm run test:malware"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

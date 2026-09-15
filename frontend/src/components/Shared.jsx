@@ -2,17 +2,18 @@ import { ChevronRight, X } from 'lucide-react';
 import { titleCase } from '../lib/utils.js';
 
 export function StatusBadge({ status }) {
-  const tone = ['approved', 'locked', 'closed'].includes(status)
+  const normalized = String(status || '').toUpperCase();
+  const tone = ['APPROVED', 'LOCKED', 'CLOSED', 'CLEAN', 'RELEASED'].includes(normalized)
     ? 'success'
-    : ['submitted', 'in_court'].includes(status)
+    : ['SUBMITTED', 'IN_COURT', 'PENDING', 'SCANNING'].includes(normalized)
     ? 'info'
-    : ['critical', 'high'].includes(status)
+    : ['CRITICAL', 'HIGH', 'INFECTED', 'QUARANTINED', 'SCAN_FAILED'].includes(normalized)
     ? 'danger'
     : 'warning';
   return (
     <span className={`status-pill ${tone}`}>
       <span />
-      {titleCase(status)}
+      {titleCase(String(status || '').replaceAll('_', ' '))}
     </span>
   );
 }

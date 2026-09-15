@@ -3,6 +3,7 @@ import * as caseModel from '../models/caseModel.js';
 import * as auditModel from '../models/auditModel.js';
 import { canAccessEvidence, canPerformOnCase } from '../authorization/authorizationService.js';
 import crypto from 'crypto';
+import { requireReleasedEvidence } from '../services/evidenceSecurityGuard.js';
 
 export async function getEvidence(req, res, next) {
   try {
@@ -52,6 +53,7 @@ export async function getEvidenceItem(req, res, next) {
 
     // File bytes are fetched separately from metadata, and only here on the
     // single-record view path — never on the list endpoint.
+    await requireReleasedEvidence(item.id);
     const file = await evidenceModel.getEvidenceFileById(item.id);
 
     // Every open of a file is itself an auditable event, chained the same

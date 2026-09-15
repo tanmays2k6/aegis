@@ -40,12 +40,14 @@ async function runTests() {
     console.log('[Test 4] Unauthenticated Admin Access Denied (401):', rAdminUnauth.status === 401 ? 'PASS' : 'FAIL');
 
     // 5. Access Request Creation
+    const testEmail = `sharma_${Date.now()}@police.gov.in`;
     const rReqAccess = await fetch(`${baseUrl}/auth/request-access`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fullName: 'Inspector Sharma',
-        officialEmail: 'sharma@police.gov.in',
+        officialEmail: testEmail,
+        password: 'Password123!',
         badgeNumber: 'POL-101',
         department: 'Cyber Crime',
         designation: 'Inspector',
@@ -62,7 +64,8 @@ async function runTests() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fullName: 'Inspector Sharma',
-        officialEmail: 'sharma@police.gov.in',
+        officialEmail: testEmail,
+        password: 'Password123!',
         badgeNumber: 'POL-101',
         department: 'Cyber Crime',
         designation: 'Inspector',

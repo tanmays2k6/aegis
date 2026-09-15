@@ -48,7 +48,7 @@ export default function EvidenceView({ profile, search }) {
           <div className="evidence-row" key={item.id}>
             <div className="evidence-file-icon"><FileText size={20} /></div>
             <div className="evidence-main">
-              <div className="evidence-title"><h3>{item.title}</h3><StatusBadge status={item.status} /></div>
+              <div className="evidence-title"><h3>{item.title}</h3><StatusBadge status={item.security_status || item.status} /></div>
               <p>{item.file_name} <span>•</span> {formatSize(item.file_size)} <span>•</span> {item.cases?.case_number ?? 'Unassigned'}</p>
               <div className="evidence-hash"><Hash size={14} /><span>{shortHash(item.current_hash)}</span><small>v{item.version_number}</small></div>
             </div>
@@ -81,7 +81,7 @@ function EvidenceDetailModal({ item, profile, onClose }) {
 
   return (
     <Modal title={item.title} eyebrow="EVIDENCE RECORD" onClose={onClose}>
-      <div className="detail-hero"><StatusBadge status={item.status} /><span className="detail-location">{item.cases?.case_number ?? 'Unassigned case'}</span></div>
+      <div className="detail-hero"><StatusBadge status={item.security_status || item.status} /><span className="detail-location">{item.cases?.case_number ?? 'Unassigned case'}</span></div>
       <WatermarkedPreview file={full} profile={profile} loadError={loadError} />
       <div className="detail-grid">
         <div><span>File</span><strong>{item.file_name}</strong></div>
@@ -209,6 +209,7 @@ function UploadModal({ profile, onClose, onCreated }) {
   const [busy, setBusy] = useState(false);
   const [hash, setHash] = useState('');
   const [error, setError] = useState('');
+  const [securityStatus, setSecurityStatus] = useState('');
 
   async function chooseFile(next) {
     if (next && next.size > 10 * 1024 * 1024) {
@@ -235,12 +236,21 @@ function UploadModal({ profile, onClose, onCreated }) {
         binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
       }
       const fileContent = btoa(binary);
-      const data = await api.evidence.create({
+      setSecurityStatus('PENDING');
+      const data = await api.uploads.create({
         title, caseNumber, documentType: docType,
         fileName: file.name, fileType: file.type || 'application/octet-stream',
         fileSize: file.size, fileContent, currentHash: hash,
       });
-      onCreated(data.evidence ?? { ...{ title, file_name: file.name, file_size: file.size, current_hash: hash, status: 'submitted', version_number: 1 }, id: crypto.randomUUID(), created_at: new Date().toISOString(), cases: { case_number: caseNumber, title: 'New case' } });
+      let current = data.status;
+      setSecurityStatus(current);
+      while (['PENDING', 'SCANNING', 'CLEAN'].includes(current)) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const scan = await api.uploads.securityStatus(data.uploadId);
+        current = scan.status;
+        setSecurityStatus(current);
+        if (current === 'RELEASED') onCreated({ title, file_name: file.name, file_size: file.size, current_hash: hash, status: 'submitted', version_number: 1, id: crypto.randomUUID(), created_at: new Date().toISOString(), cases: { case_number: caseNumber, title: 'New case' }, security_status: current });
+      }
     } catch (requestError) {
       setError(requestError.message || 'The file could not be anchored. Please try again.');
     }
@@ -282,6 +292,7 @@ function UploadModal({ profile, onClose, onCreated }) {
             <BadgeCheck size={17} />
           </div>
         )}
+        {securityStatus && <div className="notice-box"><ShieldCheck size={17} /><div><strong>{securityStatus === 'RELEASED' ? 'Security scan passed' : securityStatus === 'QUARANTINED' ? 'Security scan failed' : securityStatus === 'SCAN_FAILED' ? 'Security scanning could not be completed' : 'Security scan in progress'}</strong><p>{securityStatus === 'RELEASED' ? 'Document cleared for secure storage.' : securityStatus === 'QUARANTINED' ? 'The uploaded file has been quarantined and was not added to active evidence.' : 'Your file is being securely checked before it becomes active evidence.'}</p></div></div>}
         {error && <div className="form-error"><X size={15} />{error}</div>}
         <div className="modal-actions">
           <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>

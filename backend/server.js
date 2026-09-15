@@ -11,6 +11,7 @@ import evidenceRoutes from './routes/evidenceRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
 import complianceRoutes from './routes/complianceRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
 
 const app = express();
@@ -86,6 +87,7 @@ app.get('/api/health', (_req, res) => res.json({ success: true, status: 'ok', se
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/cases', caseRoutes);
 app.use('/api/evidence', evidenceRoutes);
+app.use('/api/uploads', uploadRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/admin', adminRoutes);
