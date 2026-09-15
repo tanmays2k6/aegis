@@ -1,18 +1,16 @@
-FROM clamav/clamav:1.4
-
-USER root
-
-# Install Node.js & npm on Alpine
-RUN apk add --no-cache nodejs npm
+FROM node:20-alpine
 
 WORKDIR /app
 
+# Copy package descriptors and install production dependencies
 COPY package.json /app/
 RUN npm install --production
 
+# Copy application source code
 COPY server.js /app/
 
+# Expose Render standard port
+ENV PORT=8080
 EXPOSE 8080
 
-# Start clamd daemon in background, wait for socket, then start HTTP Gateway
-CMD clamd & node server.js
+CMD ["node", "server.js"]
